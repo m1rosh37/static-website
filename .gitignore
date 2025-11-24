@@ -1,0 +1,14 @@
+# Node (not needed now, but future safe)
+node_modules/
+
+# Logs
+*.log
+
+# System files
+.DS_Store
+
+# Docker
+docker-compose*.yml
+
+# Python venvs (future proof)
+venv/
