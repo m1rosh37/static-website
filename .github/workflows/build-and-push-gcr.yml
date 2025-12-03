@@ -3,7 +3,7 @@ name: Build and Push Docker image to Artifact Registry
 on:
   push:
     branches:
-      - master     # or main, match your branch name
+      - master     
 
 jobs:
   build-and-push:
@@ -11,8 +11,8 @@ jobs:
 
     env:
       PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      REGION: us-east1                 # <--- choose the region where you create the repo
-      REPO_NAME: static-site-repo      # <--- the Artifact Registry repo name
+      REGION: us-east1
+      REPO_NAME: static-site-repo
       IMAGE_NAME: static-website
 
     steps:
@@ -24,7 +24,7 @@ jobs:
         with:
           registry: ${{ env.REGION }}-docker.pkg.dev
           username: _json_key
-          password: ${{ secrets.GCR_JSON_KEY }}   # <--- reuse your existing JSON key secret
+          password: ${{ secrets.GCR_JSON_KEY }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -38,3 +38,37 @@ jobs:
           tags: |
             ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}:latest
             ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO_NAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+  deploy-cloud-run:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    env:
+      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      REGION: us-east1
+      SERVICE_NAME: static-website-service
+      IMAGE: us-east1-docker.pkg.dev/daniel-miorshnichenko-sandbox/static-site-repo/static-website:latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCR_JSON_KEY }}
+
+      - name: Set up gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          image: ${{ env.IMAGE }}
+          region: ${{ env.REGION }}
+          allow_unauthenticated: true
+          env_vars: |
+            APP_ENV=prod
+            CUSTOM_MESSAGE=Hello-from-Cloud-Run
+          flags: '--port=80'
